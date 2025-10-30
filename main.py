@@ -64,7 +64,7 @@ def home():
     </head>
     <body>
       <div class="msg">Kya bhai... kya karne ja raha hai 😏</div>
-      <div id="warn">KYA KAR RHA HAI BSDK — API LGE 🔥</div>
+      <div id="warn">KYA KAR RHA HAI BSDK — API LEGA 🔥</div>
       <script>
         const warn=document.getElementById('warn');
         let open=false;
