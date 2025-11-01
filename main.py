@@ -6,7 +6,7 @@ app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False
 
 ADMIN_KEY = "kalyug"
-TEMP_KEY = "kaifu-temp"
+TEMP_KEY = "jhat-ke-pakode"
 UPSTREAM_API = "https://numapi.anshapi.workers.dev/?num={num}"
 TTL_HOURS = 24
 MAX_REQ_PER_IP = 20
