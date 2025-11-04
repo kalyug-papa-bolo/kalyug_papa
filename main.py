@@ -7,7 +7,7 @@ app.config["JSON_AS_ASCII"] = False
 
 ADMIN_KEY = "kalyug"
 TEMP_KEY = "jhat-ke-pakode"
-UPSTREAM_API = "https://numapi.anshapi.workers.dev/?num={num}"
+UPSTREAM_API = "https://cors.eu.org/https://numberimfo.vishalboss.sbs/api.php?number={num}&key=vishalboss_key_fdc25670cee8c9f060f1fc1a0e7faf26224a3624"
 TTL_HOURS = 24
 MAX_REQ_PER_IP = 20
 REQ_TIMEOUT = 10
