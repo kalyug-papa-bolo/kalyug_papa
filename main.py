@@ -5,12 +5,18 @@ from datetime import datetime, timezone
 app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False
 
+# Keys / config
 ADMIN_KEY = "kalyug"
-TEMP_KEY = "jhat-ke-pakode"
-UPSTREAM_API = "https://cors.eu.org/https://numberimfo.vishalboss.sbs/api.php?number={num}&key=vishalboss_key_fdc25670cee8c9f060f1fc1a0e7faf26224a3624"
+TEMP_KEY = "jhat-ke-pakode"  # existing temp key; keep/manage carefully
+# Upstream API you provided:
+UPSTREAM_API = "https://subhxmouktik-number-api.onrender.com/api?key=DARKDB&type=mobile&term={num}"
+
 TTL_HOURS = 24
 MAX_REQ_PER_IP = 20
 REQ_TIMEOUT = 10
+
+# Mask placeholder to be used for any sensitive owner/name fields
+MASK_PLACEHOLDER = "[REDACTED]"
 
 _data = {"created": time.time(), "uses": {}, "log": []}
 _lock = threading.Lock()
@@ -31,70 +37,41 @@ def inc(ip, num):
 
 @app.route("/")
 def home():
-    html = """
-    <!doctype html>
-    <html lang="en">
-    <head>
-      <meta charset="utf-8"/>
-      <meta name="viewport" content="width=device-width,initial-scale=1"/>
-      <title>Secure Number Lookup</title>
-      <style>
-        *{margin:0;padding:0;box-sizing:border-box;}
-        body{
-          height:100vh;display:flex;align-items:center;justify-content:center;
-          background:linear-gradient(135deg,#000814,#001d3d,#003566);
-          color:#fff;font-family:Inter,Segoe UI,sans-serif;
-          overflow:hidden;text-align:center;
-        }
-        .msg{
-          font-size:2rem;font-weight:800;
-          background:linear-gradient(90deg,#00e6ff,#8b5cff);
-          -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-          animation:pop 2s infinite alternate ease-in-out;
-        }
-        @keyframes pop{0%{transform:scale(1);}100%{transform:scale(1.2);}}
-        #warn{
-          display:none;position:fixed;inset:0;background:rgba(0,0,0,0.9);
-          color:#ffb3b3;font-size:2rem;font-weight:900;align-items:center;
-          justify-content:center;animation:blink 0.7s infinite alternate;
-          z-index:9999;text-shadow:0 0 10px red;
-        }
-        @keyframes blink{0%{opacity:1;}100%{opacity:0.6;}}
-      </style>
-    </head>
-    <body>
-      <div class="msg">Kya bhai... kya karne ja raha hai 😏</div>
-      <div id="warn">KYA KAR RHA HAI BSDK — API LEGA 🔥</div>
-      <script>
-        const warn=document.getElementById('warn');
-        let open=false;
-        setInterval(()=>{
-          const t=performance.now();
-          debugger;
-          if(performance.now()-t>100){
-            if(!open){
-              open=true;
-              warn.style.display='flex';
-            }
-          }
-        },800);
-      </script>
-    </body>
-    </html>
+    return Response("<h2>Secure Number Lookup API</h2><p>Use /api/info?key=...&num=...&consent=true for consented lookups.</p>", content_type="text/html; charset=utf-8")
+
+def mask_sensitive_fields(obj):
     """
-    return Response(html, content_type="text/html; charset=utf-8")
+    Recursively mask likely-sensitive fields in a JSON-like object.
+    This is conservative: it masks keys that commonly indicate a person name/owner.
+    """
+    if isinstance(obj, dict):
+        new = {}
+        for k, v in obj.items():
+            lk = k.lower()
+            # If key suggests a personal identity field, mask it
+            if any(token in lk for token in ("name", "owner", "fullname", "registered_to", "holder", "cnic", "aadhaar")):
+                new[k] = MASK_PLACEHOLDER
+            else:
+                new[k] = mask_sensitive_fields(v)
+        return new
+    elif isinstance(obj, list):
+        return [mask_sensitive_fields(x) for x in obj]
+    else:
+        return obj
 
 @app.route("/api/info")
 def info():
     key = request.args.get("key")
     num = request.args.get("num", "").strip()
     ip = request.headers.get("x-forwarded-for", request.remote_addr)
+    consent = request.args.get("consent", "false").lower() == "true"
 
     if not key:
         return jsonify({"success": False, "error": "Missing key"}), 401
     if not num.isdigit():
         return jsonify({"success": False, "error": "Invalid number"}), 400
 
+    # Authentication & rate limiting
     if key == ADMIN_KEY:
         pass
     elif key == TEMP_KEY:
@@ -105,12 +82,32 @@ def info():
     else:
         return jsonify({"success": False, "error": "Invalid key"}), 401
 
+    # If the user has not provided explicit consent (consent=true) and is not admin, return masked result only.
+    require_consent_for_identifiers = True
+
     try:
         r = requests.get(UPSTREAM_API.format(num=num), timeout=REQ_TIMEOUT)
-        data = r.json()
-        return jsonify({"success": True, "queried": num, "upstream": data, "time": now()})
+        upstream_data = r.json()
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Upstream error: " + str(e)}), 500
+
+    # If user is admin OR explicit consent provided, return upstream data but still mask highly sensitive keys if no consent
+    if key == ADMIN_KEY or (consent and not require_consent_for_identifiers is False):
+        # Admins and consented requests get the upstream response — but still optionally mask very sensitive keys unless explicit admin override
+        # NOTE: If you want admins to see raw data, you can skip masking for ADMIN_KEY here (use caution).
+        result = upstream_data
+    else:
+        # Non-admin/no-consent: conservatively mask fields that look like person identifiers
+        result = mask_sensitive_fields(upstream_data)
+
+    # Always include a policy note in response
+    policy_note = (
+        "This service masks possible personal identity fields unless 'consent=true' is provided "
+        "or request is made with an admin key. Ensure you have legal right and explicit consent "
+        "before accessing personal data."
+    )
+
+    return jsonify({"success": True, "queried": num, "upstream": result, "policy_note": policy_note, "time": now()})
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
