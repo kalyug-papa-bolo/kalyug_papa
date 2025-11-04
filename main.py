@@ -1,28 +1,41 @@
+#!/usr/bin/env python3
+# main.py
+# Flask-based proxy for number lookup with "owner" field removed from upstream responses.
+# NOTE: This file intentionally removes any top-level or nested key named "owner" (case-insensitive)
+# from the upstream API response before returning it to the caller. Other fields are preserved.
+
 from flask import Flask, request, jsonify, Response
-import requests, time, threading, os
+import requests
+import time
+import threading
+import os
 from datetime import datetime, timezone
 
 app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False
 
-# Keys / config
-ADMIN_KEY = "kalyug"
-TEMP_KEY = "jhat-ke-pakode"  # existing temp key; keep/manage carefully
-# Upstream API you provided:
+# -----------------------
+# Configuration
+# -----------------------
+ADMIN_KEY = "kalyug"               # admin key (keep secret)
+TEMP_KEY = "jhat-ke-pakode"        # temporary key example
 UPSTREAM_API = "https://subhxmouktik-number-api.onrender.com/api?key=DARKDB&type=mobile&term={num}"
-
+REQ_TIMEOUT = 10
 TTL_HOURS = 24
 MAX_REQ_PER_IP = 20
-REQ_TIMEOUT = 10
 
-# Mask placeholder to be used for any sensitive owner/name fields
-MASK_PLACEHOLDER = "@Jhat_ke_pakode_khaoge_babu"
-
+# Simple in-memory usage tracking (not persistent)
 _data = {"created": time.time(), "uses": {}, "log": []}
 _lock = threading.Lock()
 
-def now(): return datetime.now(timezone.utc).isoformat()
-def valid_temp(): return (time.time() - _data["created"]) < TTL_HOURS * 3600
+# -----------------------
+# Helpers
+# -----------------------
+def now():
+    return datetime.now(timezone.utc).isoformat()
+
+def valid_temp():
+    return (time.time() - _data["created"]) < TTL_HOURS * 3600
 
 def inc(ip, num):
     with _lock:
@@ -35,73 +48,90 @@ def inc(ip, num):
             _data["log"] = _data["log"][-300:]
         return True
 
-@app.route("/")
-def home():
-    return Response("<h2>Secure Number Lookup API</h2><p>Use /api/info?key=...&num=...&consent=true for consented lookups.</p>", content_type="text/html; charset=utf-8")
-
-def mask_sensitive_fields(obj):
+def remove_owner_field(obj):
     """
-    Recursively mask likely-sensitive fields in a JSON-like object.
-    This is conservative: it masks keys that commonly indicate a person name/owner.
+    Recursively remove any key named 'owner' (case-insensitive) from dictionaries.
+    Leaves all other fields intact.
     """
     if isinstance(obj, dict):
         new = {}
         for k, v in obj.items():
-            lk = k.lower()
-            # If key suggests a personal identity field, mask it
-            if any(token in lk for token in ("name", "owner", "fullname", "registered_to", "holder", "cnic", "aadhaar")):
-                new[k] = MASK_PLACEHOLDER
-            else:
-                new[k] = mask_sensitive_fields(v)
+            if k.lower() == "owner":
+                # skip this key entirely (do not include in new)
+                continue
+            new[k] = remove_owner_field(v)
         return new
     elif isinstance(obj, list):
-        return [mask_sensitive_fields(x) for x in obj]
+        return [remove_owner_field(x) for x in obj]
     else:
         return obj
 
+# -----------------------
+# Routes
+# -----------------------
+@app.route("/")
+def home():
+    html = (
+        "<h2>Secure Number Lookup Proxy</h2>"
+        "<p>Use <code>/api/info?key=...&num=...&consent=true</code> to query.</p>"
+    )
+    return Response(html, content_type="text/html; charset=utf-8")
+
 @app.route("/api/info")
 def info():
-    key = request.args.get("key")
+    key = request.args.get("key", "").strip()
     num = request.args.get("num", "").strip()
     ip = request.headers.get("x-forwarded-for", request.remote_addr)
     consent = request.args.get("consent", "false").lower() == "true"
 
+    # Basic validation
     if not key:
         return jsonify({"success": False, "error": "Missing key"}), 401
-    if not num.isdigit():
-        return jsonify({"success": False, "error": "Invalid number"}), 400
+    if not num or not num.isdigit():
+        return jsonify({"success": False, "error": "Invalid or missing 'num' parameter"}), 400
 
-    # Authentication & rate limiting
+    # Auth & rate limiting
     if key == ADMIN_KEY:
+        # admin bypasses rate limits and TTL
         pass
     elif key == TEMP_KEY:
         if not valid_temp():
             return jsonify({"success": False, "error": "Temp key expired"}), 401
         if not inc(ip, num):
-            return jsonify({"success": False, "error": "Limit reached"}), 429
+            return jsonify({"success": False, "error": "Rate limit exceeded"}), 429
     else:
         return jsonify({"success": False, "error": "Invalid key"}), 401
 
-    # If the user has not provided explicit consent (consent=true) and is not admin, return masked result only.
-    require_consent_for_identifiers = True
-
+    # Call upstream
     try:
-        r = requests.get(UPSTREAM_API.format(num=num), timeout=REQ_TIMEOUT)
-        upstream_data = r.json()
-    except Exception as e:
-        return jsonify({"success": False, "error": "Upstream error: " + str(e)}), 500
+        resp = requests.get(UPSTREAM_API.format(num=num), timeout=REQ_TIMEOUT)
+        resp.raise_for_status()
+        upstream_data = resp.json()
+    except requests.exceptions.RequestException as e:
+        return jsonify({"success": False, "error": f"Upstream request failed: {str(e)}"}), 502
+    except ValueError as e:
+        return jsonify({"success": False, "error": f"Invalid JSON from upstream: {str(e)}"}), 502
 
-    # If user is admin OR explicit consent provided, return upstream data but still mask highly sensitive keys if no consent
-    if key == ADMIN_KEY or (consent and not require_consent_for_identifiers is False):
-        # Admins and consented requests get the upstream response — but still optionally mask very sensitive keys unless explicit admin override
-        # NOTE: If you want admins to see raw data, you can skip masking for ADMIN_KEY here (use caution).
-        result = upstream_data
-    else:
-        # Non-admin/no-consent: conservatively mask fields that look like person identifiers
-        result = mask_sensitive_fields(upstream_data)
+    # Remove any 'owner' fields completely (case-insensitive), preserving rest of the response.
+    cleaned_data = remove_owner_field(upstream_data)
 
-    return jsonify({"success": True, "queried": num, "upstream": result, "policy_note": policy_note, "time": now()})
+    # Add a policy note to remind callers about consent/legal usage
+    policy_note = (
+        "Note: Any 'owner' fields have been removed from the upstream response by this proxy. "
+        "Ensure you have legal rights and explicit consent before accessing or storing personal data."
+    )
 
+    return jsonify({
+        "success": True,
+        "queried": num,
+        "upstream": cleaned_data,
+        "policy_note": policy_note,
+        "time": now()
+    })
+
+# -----------------------
+# Run app
+# -----------------------
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
