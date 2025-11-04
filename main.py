@@ -116,7 +116,7 @@ def info():
     cleaned_data = remove_owner_field(upstream_data)
 
     # Add a policy note to remind callers about consent/legal usage
-    Owner = (
+    policy_note = (
         "@Jhat_ke_pakode_khaoge_babu")
 
     return jsonify({
