@@ -117,11 +117,15 @@ def info():
 
     # Add a policy note to remind callers about consent/legal usage
     policy_note = (
-        "@Jhat_ke_pakode_khaoge_babu")
+        "Api use karo masti me koi problem aye to contact karo Kalyug ko yani mujhe. "
+    )
 
     return jsonify({
+        "success": True,
         "queried": num,
+        "upstream": cleaned_data,
         "policy_note": policy_note,
+        "time": now()
     })
 
 # -----------------------
