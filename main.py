@@ -116,17 +116,12 @@ def info():
     cleaned_data = remove_owner_field(upstream_data)
 
     # Add a policy note to remind callers about consent/legal usage
-    policy_note = (
-        "Note: Any 'owner' fields have been removed from the upstream response by this proxy. "
-        "Ensure you have legal rights and explicit consent before accessing or storing personal data."
-    )
+    Owner = (
+        "@Jhat_ke_pakode_khaoge_babu")
 
     return jsonify({
-        "success": True,
         "queried": num,
-        "upstream": cleaned_data,
         "policy_note": policy_note,
-        "time": now()
     })
 
 # -----------------------
