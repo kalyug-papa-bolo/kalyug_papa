@@ -16,7 +16,7 @@ MAX_REQ_PER_IP = 20
 REQ_TIMEOUT = 10
 
 # Mask placeholder to be used for any sensitive owner/name fields
-MASK_PLACEHOLDER = "[REDACTED]"
+MASK_PLACEHOLDER = "@Jhat_ke_pakode_khaoge_babu"
 
 _data = {"created": time.time(), "uses": {}, "log": []}
 _lock = threading.Lock()
@@ -99,13 +99,6 @@ def info():
     else:
         # Non-admin/no-consent: conservatively mask fields that look like person identifiers
         result = mask_sensitive_fields(upstream_data)
-
-    # Always include a policy note in response
-    policy_note = (
-        "This service masks possible personal identity fields unless 'consent=true' is provided "
-        "or request is made with an admin key. Ensure you have legal right and explicit consent "
-        "before accessing personal data."
-    )
 
     return jsonify({"success": True, "queried": num, "upstream": result, "policy_note": policy_note, "time": now()})
 
