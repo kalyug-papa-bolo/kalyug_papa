@@ -19,7 +19,7 @@ app.config["JSON_AS_ASCII"] = False
 # -----------------------
 ADMIN_KEY = "kalyug"               # admin key (keep secret)
 TEMP_KEY = "jhat-ke-pakode"        # temporary key example
-UPSTREAM_API = "https://subhxmouktik-number-api.onrender.com/api?key=DARKDB&type=mobile&term={num}"
+UPSTREAM_API = "https://spyshadow.site/kahoraja.php?q={num}"
 REQ_TIMEOUT = 10
 TTL_HOURS = 24
 MAX_REQ_PER_IP = 20
