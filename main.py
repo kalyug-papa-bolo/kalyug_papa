@@ -18,7 +18,7 @@ app.config["JSON_AS_ASCII"] = False
 # Configuration
 # -----------------------
 ADMIN_KEY = "kalyug"               # admin key (keep secret)
-TEMP_KEY = "jhat-ke-pakode"        # temporary key example
+TEMP_KEY = "papabolo"        # temporary key example
 UPSTREAM_API = "https://spyshadow.site/kahoraja.php?q={num}"
 REQ_TIMEOUT = 10
 TTL_HOURS = 24
