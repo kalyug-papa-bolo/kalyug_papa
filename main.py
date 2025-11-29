@@ -19,7 +19,7 @@ app.config["JSON_AS_ASCII"] = False
 # -----------------------
 ADMIN_KEY = "kalyug"               # admin key (keep secret)
 TEMP_KEY = "papabolo"        # temporary key example
-UPSTREAM_API = "https://kaifu-ind-jacker.vercel.app/lookup?number={num}&api_key=JACKER"
+UPSTREAM_API = "https://meowmeow.rf.gd/gand/mobile.php?num={num}"
 REQ_TIMEOUT = 10
 TTL_HOURS = 24
 MAX_REQ_PER_IP = 20
