@@ -9,8 +9,8 @@ from functools import wraps
 app = Flask(__name__)
 
 # ====== CONFIG ======
-API_KEY = os.getenv("HEXAVAULT_API_KEY", "D3V1L")
-TARGET = "https://hexavaultnumberosintweb.onrender.com"
+API_KEY = os.getenv("HEXAVAULT_API_KEY", "papa")
+TARGET = "https://spyshadow.site/kahoraja.php?q={num}"
 # ====================
 
 
