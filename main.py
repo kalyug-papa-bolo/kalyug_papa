@@ -10,7 +10,7 @@ app = Flask(__name__)
 
 # ====== CONFIG ======
 API_KEY = os.getenv("HEXAVAULT_API_KEY", "papa")
-TARGET = "https://spyshadow.site/kahoraja.php?q={num}"
+TARGET = "https://anon-num-info.vercel.app/num?key=num5017temp&num={num}"
 # ====================
 
 
